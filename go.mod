@@ -1,6 +1,6 @@
 module github.com/sylabs/syvalidate
 
-go 1.11
+go 1.12
 
 require (
 	github.com/gvallee/go_util v1.0.0
