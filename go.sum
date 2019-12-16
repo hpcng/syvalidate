@@ -6,3 +6,5 @@ github.com/sylabs/singularity-mpi v1.0.0 h1:bVXUHcR+xA30Qr3MU7yDbXBIj3u8cZJF+s6D
 github.com/sylabs/singularity-mpi v1.0.0/go.mod h1:drvCxAHw6GUmtBLG4luqkjHYmABUTlWbCk4Ff1GoiFc=
 github.com/sylabs/singularity-mpi v1.1.0 h1:jz8BKz52Ao3XCYX24JStoUJPep2Lx8NQ/sJYaRVSPiI=
 github.com/sylabs/singularity-mpi v1.1.0/go.mod h1:drvCxAHw6GUmtBLG4luqkjHYmABUTlWbCk4Ff1GoiFc=
+github.com/sylabs/singularity-mpi v1.2.0 h1:tI7Um703deqfZlF2FQWkdOSTiqOO9fvkBfALLaW0S5w=
+github.com/sylabs/singularity-mpi v1.2.0/go.mod h1:drvCxAHw6GUmtBLG4luqkjHYmABUTlWbCk4Ff1GoiFc=
