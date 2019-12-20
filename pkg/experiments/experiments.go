@@ -123,13 +123,9 @@ func processOutput(execRes *syexec.Result, expRes *results.Result, appInfo *app.
 	return nil
 }
 
-// Run configure, install and execute a given experiment
-func Run(exp Config, sysCfg *sys.Config, syConfig *sy.MPIToolConfig) (bool, results.Result, syexec.Result) {
+func setExperimentCfg(exp Config, sysCfg *sys.Config, syConfig *sy.MPIToolConfig) (mpi.Config, mpi.Config, error) {
 	var myHostMPICfg mpi.Config
 	var myContainerMPICfg mpi.Config
-	var execRes syexec.Result
-	var expRes results.Result
-	var err error
 
 	myHostMPICfg.Buildenv = exp.HostBuildEnv
 	myHostMPICfg.Implem = exp.HostMPI
@@ -137,8 +133,7 @@ func Run(exp Config, sysCfg *sys.Config, syConfig *sy.MPIToolConfig) (bool, resu
 	if !util.PathExists(myHostMPICfg.Buildenv.BuildDir) {
 		err := os.MkdirAll(myHostMPICfg.Buildenv.BuildDir, 0755)
 		if err != nil {
-			execRes.Err = fmt.Errorf("failed to create %s: %s", myHostMPICfg.Buildenv.BuildDir, err)
-			return false, expRes, execRes
+			return myHostMPICfg, myContainerMPICfg, fmt.Errorf("failed to create %s: %s", myHostMPICfg.Buildenv.BuildDir, err)
 		}
 	} else {
 		log.Printf("Build directory on host already exists: %s", myHostMPICfg.Buildenv.BuildDir)
@@ -146,8 +141,7 @@ func Run(exp Config, sysCfg *sys.Config, syConfig *sy.MPIToolConfig) (bool, resu
 	if !util.PathExists(myHostMPICfg.Buildenv.ScratchDir) {
 		err := os.MkdirAll(myHostMPICfg.Buildenv.ScratchDir, 0755)
 		if err != nil {
-			execRes.Err = fmt.Errorf("failed to create %s: %s", myHostMPICfg.Buildenv.ScratchDir, err)
-			return false, expRes, execRes
+			return myHostMPICfg, myContainerMPICfg, fmt.Errorf("failed to create %s: %s", myHostMPICfg.Buildenv.ScratchDir, err)
 		}
 	} else {
 		log.Printf("Build directory on host already exists: %s", myHostMPICfg.Buildenv.ScratchDir)
@@ -167,8 +161,7 @@ func Run(exp Config, sysCfg *sys.Config, syConfig *sy.MPIToolConfig) (bool, resu
 	if !util.PathExists(myContainerMPICfg.Buildenv.BuildDir) {
 		err := os.MkdirAll(myContainerMPICfg.Buildenv.BuildDir, 0755)
 		if err != nil {
-			execRes.Err = fmt.Errorf("failed to create %s: %s", myContainerMPICfg.Buildenv.BuildDir, err)
-			return false, expRes, execRes
+			return myHostMPICfg, myContainerMPICfg, fmt.Errorf("failed to create %s: %s", myContainerMPICfg.Buildenv.BuildDir, err)
 		}
 	} else {
 		log.Printf("Build directory on host already exists: %s", myContainerMPICfg.Buildenv.BuildDir)
@@ -176,14 +169,11 @@ func Run(exp Config, sysCfg *sys.Config, syConfig *sy.MPIToolConfig) (bool, resu
 	if !util.PathExists(myContainerMPICfg.Buildenv.ScratchDir) {
 		err := os.MkdirAll(myContainerMPICfg.Buildenv.ScratchDir, 0755)
 		if err != nil {
-			execRes.Err = fmt.Errorf("failed to create %s: %s", myContainerMPICfg.Buildenv.ScratchDir, err)
-			return false, expRes, execRes
+			return myHostMPICfg, myContainerMPICfg, fmt.Errorf("failed to create %s: %s", myContainerMPICfg.Buildenv.ScratchDir, err)
 		}
 	} else {
 		log.Printf("Build directory on host already exists: %s", myContainerMPICfg.Buildenv.ScratchDir)
 	}
-
-	/* INSTALL MPI ON THE HOST */
 
 	log.Println("* Host MPI Configuration *")
 	log.Println("-> Building MPI in", myHostMPICfg.Buildenv.BuildDir)
@@ -192,16 +182,45 @@ func Run(exp Config, sysCfg *sys.Config, syConfig *sy.MPIToolConfig) (bool, resu
 	log.Println("-> MPI version:", myHostMPICfg.Implem.Version)
 	log.Println("-> MPI URL:", myHostMPICfg.Implem.URL)
 
+	log.Println("* Container MPI configuration *")
+	log.Println("-> Build container in", exp.ContainerBuildEnv.BuildDir)
+	log.Println("-> Target Linux distribution in container:", exp.Container.Distro)
+	log.Println("-> Storing container in", exp.ContainerBuildEnv.InstallDir)
+	log.Println("-> Container full path: ", exp.Container.Path)
+	log.Println("-> MPI implementation:", myContainerMPICfg.Implem.ID)
+	log.Println("-> MPI version:", myContainerMPICfg.Implem.Version)
+	log.Println("-> MPI URL:", myContainerMPICfg.Implem.URL)
+
+	return myHostMPICfg, myContainerMPICfg, nil
+}
+
+// Run configure, install and execute a given experiment
+func Run(exp Config, sysCfg *sys.Config, syConfig *sy.MPIToolConfig) (bool, results.Result, syexec.Result) {
+	var expRes results.Result
+	var execRes syexec.Result
+
+	/* Figure out details about the experiment's configuration */
+	myHostMPICfg, myContainerMPICfg, err := setExperimentCfg(exp, sysCfg, syConfig)
+	if err != nil {
+		execRes.Err = fmt.Errorf("failed to set experiment's configuration: %s", err)
+		expRes.Pass = false
+		return false, expRes, execRes
+	}
 	jobmgr := jm.Detect()
 	b, err := builder.Load(&myHostMPICfg.Implem)
 	if err != nil {
 		execRes.Err = fmt.Errorf("unable to load a builder: %s", err)
+		expRes.Pass = false
 		return false, expRes, execRes
 	}
 
+	/* Capture the hardware/system configuration in order to capture provence of the experiment */
+	SOMETHING
+
+	/* Install MPI on the host */
 	execRes = b.InstallOnHost(&myHostMPICfg.Implem, &myHostMPICfg.Buildenv, sysCfg)
 	if execRes.Err != nil {
-		execRes.Err = fmt.Errorf("failed to install host MPI: %s", execRes.Err)
+		execRes.Err = fmt.Errorf("failed to install MPI on host")
 		err = launcher.SaveErrorDetails(&exp.HostMPI, &myContainerMPICfg.Implem, sysCfg, &execRes)
 		if err != nil {
 			execRes.Err = fmt.Errorf("failed to save error details: %s", err)
@@ -218,16 +237,7 @@ func Run(exp Config, sysCfg *sys.Config, syConfig *sy.MPIToolConfig) (bool, resu
 		}()
 	}
 
-	log.Println("* Container MPI configuration *")
-	log.Println("-> Build container in", exp.ContainerBuildEnv.BuildDir)
-	log.Println("-> Target Linux distribution in container:", exp.Container.Distro)
-	log.Println("-> Storing container in", exp.ContainerBuildEnv.InstallDir)
-	log.Println("-> Container full path: ", exp.Container.Path)
-	log.Println("-> MPI implementation:", myContainerMPICfg.Implem.ID)
-	log.Println("-> MPI version:", myContainerMPICfg.Implem.Version)
-	log.Println("-> MPI URL:", myContainerMPICfg.Implem.URL)
-
-	// Pull or build the image
+	/* Prepare the container image */
 	if syConfig.BuildPrivilege || sysCfg.Nopriv {
 		if !util.PathExists(exp.Container.Path) {
 			execRes = createNewContainer(&myContainerMPICfg, exp, sysCfg, syConfig)
@@ -248,12 +258,20 @@ func Run(exp Config, sysCfg *sys.Config, syConfig *sy.MPIToolConfig) (bool, resu
 		}
 	}
 
-	/* PREPARE THE COMMAND TO RUN THE ACTUAL TEST */
-
+	/* Prepare the command to run the actual experiment */
 	log.Println("* Running Test(s)...")
 
 	expRes, execRes = launcher.Run(&exp.App, &myHostMPICfg, &exp.HostBuildEnv, &myContainerMPICfg, &jobmgr, sysCfg, nil)
 	if !expRes.Pass {
+		return false, expRes, execRes
+	}
+	if execRes.Err != nil {
+		execRes.Err = fmt.Errorf("failed to run experiment: %s", execRes.Err)
+		err = launcher.SaveErrorDetails(&exp.HostMPI, &myContainerMPICfg.Implem, sysCfg, &execRes)
+		if err != nil {
+			execRes.Err = fmt.Errorf("failed to save error details: %s", err)
+		}
+		expRes.Pass = false
 		return false, expRes, execRes
 	}
 
